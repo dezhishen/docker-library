@@ -219,6 +219,8 @@ jobs:
       - name: Inspect image
         run: |
           echo "🔍 Inspecting DockerHub image..."
+          echo "sleep for 30 seconds to ensure image is available..."
+          sleep 30  # 等待几秒钟以确保镜像可用
           docker buildx imagetools inspect ${{ env.DOCKERHUB_ORG_NAME }}/${{ env.IMAGE_NAME }}:${{ matrix.image }}
           echo "🔍 Inspecting GHCR image..."
           docker buildx imagetools inspect ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_ORG_NAME }}/${{ env.IMAGE_NAME }}:${{ matrix.image }}
