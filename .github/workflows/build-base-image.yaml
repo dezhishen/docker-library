@@ -219,6 +219,8 @@ jobs:
       - name: Inspect image
         run: |
           echo "🔍 Inspecting DockerHub image..."
-          docker buildx imagetools inspect ${{ env.DOCKERHUB_ORG_NAME }}/${{ env.IMAGE_NAME }}:${{ matrix.image }}
+          res=$(docker buildx imagetools inspect ${{ env.DOCKERHUB_ORG_NAME }}/${{ env.IMAGE_NAME }}:${{ matrix.image }} 2>&1)
+          echo "$res"
           echo "🔍 Inspecting GHCR image..."
-          docker buildx imagetools inspect ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_ORG_NAME }}/${{ env.IMAGE_NAME }}:${{ matrix.image }}
+          res=$(docker buildx imagetools inspect ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_ORG_NAME }}/${{ env.IMAGE_NAME }}:${{ matrix.image }} 2>&1)
+          echo "$res"
