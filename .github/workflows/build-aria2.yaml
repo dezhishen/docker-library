@@ -172,7 +172,7 @@ jobs:
 
       - name: Inspect image
         run: |
-          waitSenconds=$((RANDOM % 10))
+          waitSeconds=$((RANDOM % 5 + 5))
           echo "Start inspecting image information. To avoid 429 errors, will sleep for ${waitSenconds} seconds."
           sleep ${waitSenconds}
           echo "🔍 Inspecting DockerHub image..."
