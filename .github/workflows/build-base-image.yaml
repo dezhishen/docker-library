@@ -76,9 +76,6 @@ jobs:
           echo "${{ matrix.build_arg }}" >> build-params-content.txt
           HASH=$(sha256sum build-params-content.txt | awk '{print $1}')
           echo "params_hash=$HASH" >> $GITHUB_OUTPUT
-          # 生成到文件，供后续比对使用
-          mkdir -p build-params-dummy
-          echo "$HASH" > build-params-dummy/hash
 
       # 固定key从cache恢复，上次构建参数
       - name: Restore build params cache
@@ -180,6 +177,13 @@ jobs:
           path: ${{ runner.temp }}/digests-${{ matrix.image }}/*
           if-no-files-found: error
           retention-days: 1
+
+      - name: Create current build hash file
+        if: steps.cmp.outputs.skip_build != 'true'
+        run: |
+          mkdir -p build-params-dummy
+          echo "${{ steps.build_params.outputs.params_hash }}" > build-params-dummy/hash
+
       - name: Save build params hash to cache
         if : steps.cmp.outputs.skip_build != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true')
         uses: actions/cache@v4
@@ -214,10 +218,6 @@ jobs:
           echo "${{ matrix.build_arg }}" >> build-params-content.txt
           HASH=$(sha256sum build-params-content.txt | awk '{print $1}')
           echo "params_hash=$HASH" >> $GITHUB_OUTPUT
-          # 生成到文件，供后续比对使用
-          mkdir -p build-params-dummy
-          echo "$HASH" > build-params-dummy/hash
-
       - name: Restore build params cache
         if : env.FORCE_BUILD != 'true'
         id: cache
@@ -318,6 +318,11 @@ jobs:
           path: ${{ runner.temp }}/digests-${{ matrix.image }}/*
           if-no-files-found: error
           retention-days: 1
+      - name: Create current build hash file
+        if: steps.cmp.outputs.skip_build != 'true'
+        run: |
+          mkdir -p build-params-dummy
+          echo "${{ steps.build_params.outputs.params_hash }}" > build-params-dummy/hash
       - name: Save build params hash to cache
         if: steps.cmp.outputs.skip_build != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true')
         uses: actions/cache@v4
@@ -356,9 +361,6 @@ jobs:
           cat ${{ runner.temp }}/digests-${{ matrix.image }}/* | sort | sha256sum | awk '{print $1}' > manifest.hash
           HASH=$(cat manifest.hash)
           echo "hash=${HASH}" >> $GITHUB_OUTPUT
-          # 输出hash供后续比对使用
-          mkdir -p manifest-dummy
-          echo "$HASH" > manifest-dummy/hash
 
       # 恢复上次hash进行内容比对
       - name: Restore manifest cache
@@ -444,6 +446,12 @@ jobs:
             echo " Inspecting GHCR image..."
             docker buildx imagetools inspect ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_ORG_NAME }}/${{ env.IMAGE_NAME }}:${{ matrix.image }}
           fi
+      - name: Create current manifest hash file
+        if: steps.cmp.outputs.skip_manifest != 'true'
+        run: |
+          mkdir -p manifest-dummy
+          echo "${{ steps.manifest_hash.outputs.hash }}" > manifest-dummy/hash
+          
       - name: Save manifest hash to cache
         run: |
           mkdir -p manifest-dummy
