@@ -266,7 +266,7 @@ jobs:
       - name: Set build tags
         id: tags
         shell: bash
-        if: steps.cmp.outputs.skip_build != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true'
+        if: steps.cmp.outputs.skip_build != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true')
         run: |
           TAGS=""
           if [ "${{ env.ENABLE_DOCKERHUB }}" = "true" ]; then
