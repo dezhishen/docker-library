@@ -103,6 +103,7 @@ jobs:
               skip=true
             fi
           fi
+          echo "skip_build=$skip"
           echo "skip_build=${skip}" >> $GITHUB_OUTPUT
           if [ "$skip" = "true" ]; then
             echo "羅 No change in Dockerfile or build args, skip build for ${{ matrix.image }}"
@@ -235,6 +236,7 @@ jobs:
               skip=true
             fi
           fi
+          echo "skip_build=$skip"
           echo "skip_build=${skip}" >> $GITHUB_OUTPUT
           if [ "$skip" = "true" ]; then
             echo "羅 No change in Dockerfile.loong64 or build args, skip build for ${{ matrix.image }}"
