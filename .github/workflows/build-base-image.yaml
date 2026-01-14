@@ -41,6 +41,43 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 生成参数hash：Dockerfile+build_arg
+      - name: Generate build params hash
+        id: build_params
+        shell: bash
+        run: |
+          cat ./base/Dockerfile > build-params-content.txt
+          echo "${{ matrix.build_arg }}" >> build-params-content.txt
+          HASH=$(sha256sum build-params-content.txt | awk '{print $1}')
+          echo "params_hash=$HASH" >> $GITHUB_OUTPUT
+
+      # 固定key从cache恢复，上次构建参数
+      - name: Restore build params cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          key: docker-base-${{ matrix.image }}-params
+          path: build-params-dummy
+
+      # 与cache里上次参数比对，如果一致直接跳过构建
+      - name: Compare build params hash and maybe skip
+        id: cmp
+        shell: bash
+        run: |
+          skip=false
+          if [ -f build-params-dummy/hash ]; then
+            last_hash=$(cat build-params-dummy/hash)
+            if [ "$last_hash" = "${{ steps.build_params.outputs.params_hash }}" ]; then
+              skip=true
+            fi
+          fi
+          echo "skip_build=${skip}" >> $GITHUB_OUTPUT
+          if $skip; then
+            echo "🤏 No change in Dockerfile or build args, skip build for ${{ matrix.image }}"
+            exit 0
+          fi
+
+      # ↓只在参数变了时才会走到这↓
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -90,7 +127,12 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # 单独构建龙芯架构
+      # 构建完成后存储参数hash到cache目录
+      - name: Save build params hash to cache
+        run: |
+          mkdir -p build-params-dummy
+          echo "${{ steps.build_params.outputs.params_hash }}" > build-params-dummy/hash
+
   build-loong64:
     name: Build Base Docker Image (LoongArch64)
     runs-on: ubuntu-latest
@@ -109,6 +151,39 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Generate build params hash
+        id: build_params
+        shell: bash
+        run: |
+          cat ./base/Dockerfile.loong64 > build-params-content.txt
+          echo "${{ matrix.build_arg }}" >> build-params-content.txt
+          HASH=$(sha256sum build-params-content.txt | awk '{print $1}')
+          echo "params_hash=$HASH" >> $GITHUB_OUTPUT
+
+      - name: Restore build params cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          key: docker-loong64-${{ matrix.image }}-params
+          path: build-params-dummy
+
+      - name: Compare build params hash and maybe skip
+        id: cmp
+        shell: bash
+        run: |
+          skip=false
+          if [ -f build-params-dummy/hash ]; then
+            last_hash=$(cat build-params-dummy/hash)
+            if [ "$last_hash" = "${{ steps.build_params.outputs.params_hash }}" ]; then
+              skip=true
+            fi
+          fi
+          echo "skip_build=${skip}" >> $GITHUB_OUTPUT
+          if $skip; then
+            echo "🤏 No change in Dockerfile.loong64 or build args, skip build for ${{ matrix.image }}"
+            exit 0
+          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -159,6 +234,11 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Save build params hash to cache
+        run: |
+          mkdir -p build-params-dummy
+          echo "${{ steps.build_params.outputs.params_hash }}" > build-params-dummy/hash
+
   # 合并所有架构的manifest
   merge:
     name: Merge ${{ matrix.image }} manifests
@@ -182,6 +262,41 @@ jobs:
           name: digests-${{ matrix.image }}-loong64
           path: ${{ runner.temp }}/digests-${{ matrix.image }}
 
+      # 为本次所有 digest 文件（保证顺序唯一）生成hash
+      - name: Compose manifest digest hash
+        id: manifest_hash
+        shell: bash
+        run: |
+          cat ${{ runner.temp }}/digests-${{ matrix.image }}/* | sort | sha256sum | awk '{print $1}' > manifest.hash
+          HASH=$(cat manifest.hash)
+          echo "hash=${HASH}" >> $GITHUB_OUTPUT
+
+      # 恢复上次hash进行内容比对
+      - name: Restore manifest cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          key: manifest-${{ matrix.image }}
+          path: manifest-dummy
+
+      - name: Compare manifest hash and maybe skip
+        id: mfcmp
+        shell: bash
+        run: |
+          skip=false
+          if [ -f manifest-dummy/hash ]; then
+            last_hash=$(cat manifest-dummy/hash)
+            if [ "$last_hash" = "${{ steps.manifest_hash.outputs.hash }}" ]; then
+              skip=true
+            fi
+          fi
+          echo "skip_merge=${skip}" >> $GITHUB_OUTPUT
+          if $skip; then
+            echo "🤏 No change in manifest digests, skip merge for ${{ matrix.image }}"
+            exit 0
+          fi
+
+      # ↓参数不同/新内容才会走到这↓
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -203,13 +318,13 @@ jobs:
         run: |
           echo "🔍 Available digests for ${{ matrix.image }}:"
           ls -la
-          
+
           # Create manifest for DockerHub
           echo "📦 Creating DockerHub manifest for ${{ matrix.image }}..."
           docker buildx imagetools create \
             -t ${{ env.DOCKERHUB_ORG_NAME }}/${{ env.IMAGE_NAME }}:${{ matrix.image }} \
             $(printf '${{ env.DOCKERHUB_ORG_NAME }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
-          
+
           # Create manifest for GHCR
           echo "📦 Creating GHCR manifest for ${{ matrix.image }}..."
           docker buildx imagetools create \
@@ -219,9 +334,14 @@ jobs:
       - name: Inspect image
         run: |
           waitSeconds=$((RANDOM % 5 + 5))
-          echo "Start inspecting image information. To avoid 429 errors, will sleep for ${waitSenconds} seconds."
-          sleep ${waitSenconds}
+          echo "Start inspecting image information. To avoid 429 errors, will sleep for ${waitSeconds} seconds."
+          sleep ${waitSeconds}
           echo "🔍 Inspecting DockerHub image..."
           docker buildx imagetools inspect ${{ env.DOCKERHUB_ORG_NAME }}/${{ env.IMAGE_NAME }}:${{ matrix.image }}
           echo "🔍 Inspecting GHCR image..."
           docker buildx imagetools inspect ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_ORG_NAME }}/${{ env.IMAGE_NAME }}:${{ matrix.image }}
+
+      - name: Save manifest hash to cache
+        run: |
+          mkdir -p manifest-dummy
+          echo "${{ steps.manifest_hash.outputs.hash }}" > manifest-dummy/hash
