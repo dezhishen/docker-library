@@ -157,7 +157,7 @@ jobs:
           pull: true
           no-cache: true
           build-args: ${{ matrix.build_arg }}
-          tags: ${{ steps.tags.outputs.tags && steps.tags.outputs.tags != '' && steps.tags.outputs.tags != null && steps.tags.outputs.tags != 'null' && fromJson('["' + join(steps.tags.outputs.tags, '","') + '"]') || '' }}
+          tags: ${{ steps.tags.outputs.tags }}
           platforms: ${{ env.RELEASE_PLATFORMS }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
 
@@ -290,7 +290,7 @@ jobs:
           pull: true
           no-cache: true
           build-args: ${{ matrix.build_arg }}
-          tags: ${{ steps.tags.outputs.tags && steps.tags.outputs.tags != '' && steps.tags.outputs.tags != null && steps.tags.outputs.tags != 'null' && fromJson('["' + join(steps.tags.outputs.tags, '","') + '"]') || '' }}
+          tags: ${{ steps.tags.outputs.tags }}
           platforms: ${{ env.LOONG64_PLATFORM }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
 
