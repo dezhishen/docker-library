@@ -377,7 +377,7 @@ jobs:
             exit 0
           fi
       - name: Login to GitHub Container Registry
-        if: steps.cmp.outputs.skip_manifest != 'true' && env.ENABLE_GHCR = 'true'
+        if: steps.cmp.outputs.skip_manifest != 'true' && env.ENABLE_GHCR == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.GHCR_REGISTRY }}
