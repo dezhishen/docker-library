@@ -2,6 +2,10 @@ name: Build Base Docker Image
 on:
   workflow_dispatch:
     inputs:
+      loong64_alpine_image:
+        description: 'LoongArch64 Alpine image (with tag) to use'
+        required: false
+        default: 'ghcr.io/loong64/alpine:edge'
       base_alpine_image:
         description: 'Base Alpine image (with tag) to use'
         required: false
@@ -33,6 +37,7 @@ env:
   RELEASE_PLATFORMS: 'linux/amd64,linux/arm64,linux/arm/v7,linux/386,linux/arm/v6,linux/ppc64le,linux/riscv64'
   BASE_ALPINE_IMAGE: ${{ github.event.inputs.base_alpine_image || vars.BASE_ALPINE_IMAGE || 'alpine:edge' }}
   LOONG64_PLATFORM: 'linux/loong64'
+  LOONG64_ALPINE_IMAGE: ${{ github.event.inputs.loong64_alpine_image || vars.LOONG64_ALPINE_IMAGE || 'ghcr.io/loong64/alpine:edge' }}
   ENABLE_DOCKERHUB: ${{ github.event.inputs.enable_dockerhub || vars.ENABLE_DOCKERHUB || 'true' }}
   ENABLE_GHCR: ${{ github.event.inputs.enable_ghcr || vars.ENABLE_GHCR || 'true' }}
   FORCE_BUILD: ${{ github.event.inputs.force_build || vars.FORCE_BUILD || 'false' }}
@@ -50,13 +55,13 @@ jobs:
         image: ["base", "ffmpeg", "aria2", "aio"]
         include:
           - image: "base"
-            build_arg: ""
+            build_arg: "BASE_ALPINE_IMAGE=${{ env.BASE_ALPINE_IMAGE }}"
           - image: "ffmpeg"
-            build_arg: "INSTALL_FFMPEG=true"
+            build_arg: "INSTALL_FFMPEG=true\nBASE_ALPINE_IMAGE=${{ env.BASE_ALPINE_IMAGE }}"
           - image: "aria2"
-            build_arg: "INSTALL_ARIA2=true"
+            build_arg: "INSTALL_ARIA2=true\nBASE_ALPINE_IMAGE=${{ env.BASE_ALPINE_IMAGE }}"
           - image: "aio"
-            build_arg: "INSTALL_FFMPEG=true\nINSTALL_ARIA2=true"
+            build_arg: "INSTALL_FFMPEG=true\nINSTALL_ARIA2=true\nBASE_ALPINE_IMAGE=${{ env.BASE_ALPINE_IMAGE }}"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -153,11 +158,11 @@ jobs:
           - image: "base"
             build_arg: ""
           - image: "ffmpeg"
-            build_arg: "INSTALL_FFMPEG=true"
+            build_arg: "INSTALL_FFMPEG=true\nLOONG64_ALPINE_IMAGE=${{ env.LOONG64_ALPINE_IMAGE }}"
           - image: "aria2"
-            build_arg: "INSTALL_ARIA2=true"
+            build_arg: "INSTALL_ARIA2=true\nLOONG64_ALPINE_IMAGE=${{ env.LOONG64_ALPINE_IMAGE }}"
           - image: "aio"
-            build_arg: "INSTALL_FFMPEG=true\nINSTALL_ARIA2=true"
+            build_arg: "INSTALL_FFMPEG=true\nINSTALL_ARIA2=true\nLOONG64_ALPINE_IMAGE=${{ env.LOONG64_ALPINE_IMAGE }}"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

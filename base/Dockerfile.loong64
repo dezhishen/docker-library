@@ -1,5 +1,5 @@
-FROM ghcr.io/loong64/alpine:edge
-
+ARG LOONG64_ALPINE_IMAGE=ghcr.io/loong64/alpine:edge
+FROM ${LOONG64_ALPINE_IMAGE}
 ARG TARGETPLATFORM
 ARG INSTALL_FFMPEG=false
 ARG INSTALL_ARIA2=false
