@@ -171,7 +171,6 @@ jobs:
       - name: Upload digest
         if : steps.cmp.outputs.skip_build != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true')
         uses: actions/upload-artifact@v4
-        if : env.FORCE_BUILD != 'true' && steps.cmp.outputs.skip_build != 'true'
         with:
           name: digests-${{ matrix.image }}-multiarch
           path: ${{ runner.temp }}/digests-${{ matrix.image }}/*
