@@ -137,10 +137,10 @@ jobs:
         run: |
           TAGS=""
           if [ "${{ env.ENABLE_DOCKERHUB }}" = "true" ]; then
-            TAGS="${TAGS}${TAGS:+\\n}${{ env.DOCKERHUB_ORG_NAME }}/${{ env.IMAGE_NAME }}"
+            TAGS="${TAGS}\n${{ env.DOCKERHUB_ORG_NAME }}/${{ env.IMAGE_NAME }}"
           fi
           if [ "${{ env.ENABLE_GHCR }}" = "true" ]; then
-            TAGS="${TAGS}${TAGS:+\\n}${{ env.GHCR_REGISTRY }}/${{ env.GHCR_ORG_NAME }}/${{ env.IMAGE_NAME }}"
+            TAGS="${TAGS}\n${{ env.GHCR_REGISTRY }}/${{ env.GHCR_ORG_NAME }}/${{ env.IMAGE_NAME }}"
           fi
           echo "tags<<EOF" >> $GITHUB_OUTPUT
           echo "$TAGS" >> $GITHUB_OUTPUT
@@ -270,10 +270,10 @@ jobs:
         run: |
           TAGS=""
           if [ "${{ env.ENABLE_DOCKERHUB }}" = "true" ]; then
-            TAGS="${TAGS}${TAGS:+\\n}${{ env.DOCKERHUB_ORG_NAME }}/${{ env.IMAGE_NAME }}"
+            TAGS="${TAGS}\n${{ env.DOCKERHUB_ORG_NAME }}/${{ env.IMAGE_NAME }}"
           fi
           if [ "${{ env.ENABLE_GHCR }}" = "true" ]; then
-            TAGS="${TAGS}${TAGS:+\\n}${{ env.GHCR_REGISTRY }}/${{ env.GHCR_ORG_NAME }}/${{ env.IMAGE_NAME }}"
+            TAGS="${TAGS}\n${{ env.GHCR_REGISTRY }}/${{ env.GHCR_ORG_NAME }}/${{ env.IMAGE_NAME }}"
           fi
           echo "tags<<EOF" >> $GITHUB_OUTPUT
           echo "$TAGS" >> $GITHUB_OUTPUT
