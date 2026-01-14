@@ -1,5 +1,6 @@
-FROM docker.io/library/alpine:edge
+ARG BASE_ALPINE_IMAGE=alpine:edge
 
+FROM ${BASE_ALPINE_IMAGE}
 ARG TARGETPLATFORM
 ARG INSTALL_FFMPEG=false
 ARG INSTALL_ARIA2=false
