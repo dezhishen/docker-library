@@ -142,7 +142,7 @@ jobs:
           if [ "${{ env.ENABLE_GHCR }}" = "true" ]; then
             TAGS+=("${{ env.GHCR_REGISTRY }}/${{ env.GHCR_ORG_NAME }}/${{ env.IMAGE_NAME }}")
           fi
-          tag_str=$(printf '%s\n' "${TAGS[@]}" | jq -R . | jq -s .)
+          tag_str=$(IFS=','; echo "${TAGS[*]}")
           echo "tags=$tag_str"
           echo "tags=$tag_str" >> $GITHUB_OUTPUT
 
@@ -156,8 +156,8 @@ jobs:
           push: true
           pull: true
           no-cache: true
-          build-args: ${{ matrix.build_arg }}
-          tags: ${{ fromJson(steps.tags.outputs.tags) }}
+          build-args: ${{ matrix.build_arg }}+
+          tags: ${{ steps.tags.outputs.tags && steps.tags.outputs.tags != '' && steps.tags.outputs.tags != null && steps.tags.outputs.tags != 'null' && fromJson('["' + join(steps.tags.outputs.tags, '","') + '"]') || '' }}
           platforms: ${{ env.RELEASE_PLATFORMS }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
 
@@ -275,7 +275,7 @@ jobs:
           if [ "${{ env.ENABLE_GHCR }}" = "true" ]; then
             TAGS+=("${{ env.GHCR_REGISTRY }}/${{ env.GHCR_ORG_NAME }}/${{ env.IMAGE_NAME }}")
           fi
-          tag_str=$(printf '%s\n' "${TAGS[@]}" | jq -R . | jq -s .)
+          tag_str=$(IFS=','; echo "${TAGS[*]}")
           echo "tags=$tag_str"
           echo "tags=$tag_str" >> $GITHUB_OUTPUT
 
@@ -290,7 +290,7 @@ jobs:
           pull: true
           no-cache: true
           build-args: ${{ matrix.build_arg }}
-          tags: ${{ fromJson(steps.tags.outputs.tags) }}
+          tags: ${{ steps.tags.outputs.tags && steps.tags.outputs.tags != '' && steps.tags.outputs.tags != null && steps.tags.outputs.tags != 'null' && fromJson('["' + join(steps.tags.outputs.tags, '","') + '"]') || '' }}
           platforms: ${{ env.LOONG64_PLATFORM }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
 
