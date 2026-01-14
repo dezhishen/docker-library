@@ -172,6 +172,9 @@ jobs:
 
       - name: Inspect image
         run: |
+          waitSenconds=$((RANDOM % 10))
+          echo "Start inspecting image information. To avoid 429 errors, will sleep for ${waitSenconds} seconds."
+          sleep ${waitSenconds}
           echo "🔍 Inspecting DockerHub image..."
           docker buildx imagetools inspect ${{ env.DOCKERHUB_ORG_NAME }}/${{ env.IMAGE_NAME }}
           echo "🔍 Inspecting GHCR image..."
