@@ -222,7 +222,7 @@ jobs:
         id: cmp
         shell: bash
         run: |
-          if [ "${{ env.FORCE_BUILD }}" = "true ]; then
+          if [ "${{ env.FORCE_BUILD }}" = "true" ]; then
             echo "force build enabled, not skipping"
             echo "skip_build=false" >> $GITHUB_OUTPUT
             exit 0
