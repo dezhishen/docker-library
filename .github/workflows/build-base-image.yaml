@@ -69,6 +69,7 @@ jobs:
       # 生成参数hash：Dockerfile+build_arg
       - name: Generate build params hash
         id: build_params
+        if : env.FORCE_BUILD != 'true'
         shell: bash
         run: |
           cat ./base/Dockerfile > build-params-content.txt
@@ -76,21 +77,46 @@ jobs:
           HASH=$(sha256sum build-params-content.txt | awk '{print $1}')
           echo "params_hash=$HASH" >> $GITHUB_OUTPUT
 
-      - name: Skip if not force build
-        if: env.FORCE_BUILD != 'true'
-        run: |
-          echo "Not force build, skipping for ${{ matrix.image }}"
-          exit 0
+      # 固定key从cache恢复，上次构建参数
+      - name: Restore build params cache
+        id: cache
+        if : env.FORCE_BUILD != 'true'
+        uses: actions/cache@v4
+        with:
+          key: docker-base-${{ matrix.image }}-params
+          path: build-params-dummy
 
-      # ↓只在force时才会走到这↓
+      # 与cache里上次参数比对，如果一致直接跳过构建
+      - name: Compare build params hash and maybe skip
+        id: cmp
+        shell: bash
+        run: |
+          if [ "${{ env.FORCE_BUILD }}" = "true"]; then
+            echo "force build enabled, not skipping"
+            echo "skip_build=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          skip=false
+          if [ -f build-params-dummy/hash ]; then
+            last_hash=$(cat build-params-dummy/hash)
+            if [ "$last_hash" = "${{ steps.build_params.outputs.params_hash }}" ]; then
+              skip=true
+            fi
+          fi
+          echo "skip_build=${skip}" >> $GITHUB_OUTPUT
+          if $skip; then
+            echo "羅 No change in Dockerfile or build args, skip build for ${{ matrix.image }}"
+            exit 0
+          fi
+      # 如果上一步决定跳过，则直接退出
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-
+        if: steps.cmp.outputs.skip_build != 'true'
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
-        if: env.ENABLE_GHCR == 'true'
+        if: steps.cmp.outputs.skip_build != 'true' && env.ENABLE_GHCR == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.GHCR_REGISTRY }}
@@ -98,13 +124,14 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Login to DockerHub Container Registry
-        if: env.ENABLE_DOCKERHUB == 'true'
+        if: steps.cmp.outputs.skip_build != 'true' && env.ENABLE_DOCKERHUB == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_ORG_NAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set build tags
+        if : steps.cmp.outputs.skip_build != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true')
         id: tags
         shell: bash
         run: |
@@ -120,7 +147,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image (Multi-arch)
-        if: env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true'
+        if : steps.cmp.outputs.skip_build != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true')
         uses: docker/build-push-action@v6
         id: build
         with:
@@ -135,18 +162,26 @@ jobs:
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digest
+        if : steps.cmp.outputs.skip_build != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true')
         run: |
           mkdir -p ${{ runner.temp }}/digests-${{ matrix.image }}
           digest="${{ steps.build.outputs.digest }}"
           touch "${{ runner.temp }}/digests-${{ matrix.image }}/${digest#sha256:}"
 
       - name: Upload digest
+        if : steps.cmp.outputs.skip_build != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true')
         uses: actions/upload-artifact@v4
+        if : env.FORCE_BUILD != 'true' && steps.cmp.outputs.skip_build != 'true'
         with:
           name: digests-${{ matrix.image }}-multiarch
           path: ${{ runner.temp }}/digests-${{ matrix.image }}/*
           if-no-files-found: error
           retention-days: 1
+      - name: Save build params hash to cache
+        if : steps.cmp.outputs.skip_build != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true')
+        uses: actions/cache@v4
+        with:
+          key: docker-base-${{ matrix.image }}-params
 
   build-loong64:
     name: Build Base Docker Image (LoongArch64)
@@ -166,8 +201,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Generate build params hash
+        if : env.FORCE_BUILD != 'true'
         id: build_params
         shell: bash
         run: |
@@ -176,20 +211,46 @@ jobs:
           HASH=$(sha256sum build-params-content.txt | awk '{print $1}')
           echo "params_hash=$HASH" >> $GITHUB_OUTPUT
 
-      - name: Skip if not force build
-        if: env.FORCE_BUILD != 'true'
+      - name: Restore build params cache
+        if : env.FORCE_BUILD != 'true'
+        id: cache
+        uses: actions/cache@v4
+        with:
+          key: docker-loong64-${{ matrix.image }}-params
+          path: build-params-dummy
+
+      - name: Compare build params hash and maybe skip
+        id: cmp
+        shell: bash
         run: |
-          echo "Not force build, skipping for ${{ matrix.image }}"
-          exit 0
+          if [ "${{ env.FORCE_BUILD }}" = "true ]; then
+            echo "force build enabled, not skipping"
+            echo "skip_build=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          skip=false
+          if [ -f build-params-dummy/hash ]; then
+            last_hash=$(cat build-params-dummy/hash)
+            if [ "$last_hash" = "${{ steps.build_params.outputs.params_hash }}" ]; then
+              skip=true
+            fi
+          fi
+          echo "skip_build=${skip}" >> $GITHUB_OUTPUT
+          if $skip; then
+            echo "羅 No change in Dockerfile.loong64 or build args, skip build for ${{ matrix.image }}"
+            exit 0
+          fi
 
       - name: Set up QEMU
+        if: steps.cmp.outputs.skip_build != 'true'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
+        if: steps.cmp.outputs.skip_build != 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
-        if: env.ENABLE_GHCR == 'true'
+        if: steps.cmp.outputs.skip_build != 'true' && env.ENABLE_GHCR == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.GHCR_REGISTRY }}
@@ -197,7 +258,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Login to DockerHub Container Registry
-        if: env.ENABLE_DOCKERHUB == 'true'
+        if: steps.cmp.outputs.skip_build != 'true' && env.ENABLE_DOCKERHUB == 'true' 
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_ORG_NAME }}
@@ -206,6 +267,7 @@ jobs:
       - name: Set build tags
         id: tags
         shell: bash
+        if: steps.cmp.outputs.skip_build != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true'
         run: |
           TAGS=""
           if [ "${{ env.ENABLE_DOCKERHUB }}" = "true" ]; then
@@ -219,7 +281,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image (LoongArch64)
-        if: env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true'
+        if: steps.cmp.outputs.skip_build != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true')
         uses: docker/build-push-action@v6
         id: build
         with:
@@ -234,18 +296,25 @@ jobs:
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digest
+        if: steps.cmp.outputs.skip_build != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true')
         run: |
           mkdir -p ${{ runner.temp }}/digests-${{ matrix.image }}
           digest="${{ steps.build.outputs.digest }}"
           touch "${{ runner.temp }}/digests-${{ matrix.image }}/${digest#sha256:}"
 
       - name: Upload digest
+        if: steps.cmp.outputs.skip_build != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true')
         uses: actions/upload-artifact@v4
         with:
           name: digests-${{ matrix.image }}-loong64
           path: ${{ runner.temp }}/digests-${{ matrix.image }}/*
           if-no-files-found: error
           retention-days: 1
+      - name: Save build params hash to cache
+        if: steps.cmp.outputs.skip_build != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true')
+        uses: actions/cache@v4
+        with:
+          key: docker-loong64-${{ matrix.image }}-params
 
   # 合并所有架构的manifest
   merge:
@@ -279,15 +348,37 @@ jobs:
           HASH=$(cat manifest.hash)
           echo "hash=${HASH}" >> $GITHUB_OUTPUT
 
-      - name: Skip if not force build
-        if: env.FORCE_BUILD != 'true'
+      # 恢复上次hash进行内容比对
+      - name: Restore manifest cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          key: manifest-${{ matrix.image }}
+          path: manifest-dummy
+      # 比对hash决定是否跳过manifest创建
+      - name: Compare manifest hash and maybe skip
+        id: cmp
+        shell: bash
         run: |
-          echo "Not force build, skipping merge for ${{ matrix.image }}"
-          exit 0
-
-      # ↓只在force时才会走到这↓
+          if [ "${{ env.FORCE_BUILD }}" = "true" ]; then
+            echo "force build enabled, not skipping"
+            echo "skip_manifest=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          skip=false
+          if [ -f manifest-dummy/hash ]; then
+            last_hash=$(cat manifest-dummy/hash)
+            if [ "$last_hash" = "${{ steps.manifest_hash.outputs.hash }}" ]; then
+              skip=true
+            fi
+          fi
+          echo "skip_manifest=${skip}" >> $GITHUB_OUTPUT
+          if $skip; then
+            echo "羅 No change in digests, skip manifest creation for ${{ matrix.image }}"
+            exit 0
+          fi
       - name: Login to GitHub Container Registry
-        if: env.ENABLE_GHCR == 'true'
+        if: steps.cmp.outputs.skip_manifest != 'true' && env.ENABLE_GHCR= 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.GHCR_REGISTRY }}
@@ -295,21 +386,22 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Login to DockerHub Container Registry
-        if: env.ENABLE_DOCKERHUB == 'true'
+        if: steps.cmp.outputs.skip_manifest != 'true' && env.ENABLE_DOCKERHUB == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_ORG_NAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
+        if: steps.cmp.outputs.skip_manifest != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true') 
         uses: docker/setup-buildx-action@v3
 
       - name: Create manifest list and push
+        if: steps.cmp.outputs.skip_manifest != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true') 
         working-directory: ${{ runner.temp }}/digests-${{ matrix.image }}
         run: |
           echo " Available digests for ${{ matrix.image }}:"
           ls -la
-
           if [ "${{ env.ENABLE_DOCKERHUB }}" = "true" ]; then
             # Create manifest for DockerHub
             echo " Creating DockerHub manifest for ${{ matrix.image }}..."
@@ -327,6 +419,7 @@ jobs:
           fi
 
       - name: Inspect image
+        if: steps.cmp.outputs.skip_manifest != 'true' && (env.ENABLE_DOCKERHUB == 'true' || env.ENABLE_GHCR == 'true') 
         run: |
           waitSeconds=$((RANDOM % 5 + 5))
           echo "Start inspecting image information. To avoid 429 errors, will sleep for ${waitSeconds} seconds."
@@ -339,3 +432,7 @@ jobs:
             echo " Inspecting GHCR image..."
             docker buildx imagetools inspect ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_ORG_NAME }}/${{ env.IMAGE_NAME }}:${{ matrix.image }}
           fi
+      - name: Save manifest hash to cache
+        run: |
+          mkdir -p manifest-dummy
+          echo "${{ steps.manifest_hash.outputs.hash }}" > manifest-dummy/hash
