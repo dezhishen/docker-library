@@ -314,6 +314,7 @@ jobs:
         uses: actions/cache@v4
         with:
           key: docker-loong64-${{ matrix.image }}-params
+          path: build-params-dummy
 
   # 合并所有架构的manifest
   merge:
